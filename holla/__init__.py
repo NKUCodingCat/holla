@@ -1,2 +1,2 @@
-from holla_server import holla_server, holla_base_app
+from holla_server import *
 from HTTP_Resp    import Response, HTTPError

@@ -1,18 +1,50 @@
 from gevent.pywsgi import WSGIServer
 from gevent import monkey
 from HTTP_Resp import HTTPError, Response
+from werkzeug.routing import Map, Rule
+from werkzeug.exceptions import HTTPException, NotFound
 import traceback
 monkey.patch_all()
+
+        
+def add_Route(url, func, url_map, methods = None): #Act as an Function
+    if methods:
+        url_map.add(Rule(url, endpoint = func, methods = methods))
+    else:
+        url_map.add(Rule(url, endpoint = func))
+
 
 
         
 class holla_base_app(object):
 
-    def __init__(self, env):
-        self.Response = Response  # Just an alias of Response Class
-        pass
 
-    def get_resp(self):
+    """
+        This Class provide a Response Obj as an alias of HTTP_Resp.Response
+        Usage: Let get_resp obj return a Response obj, and you don't need to do anything else 
+    """
+    
+    def __init__(self):
+        self.Response = Response  # Just an alias of Response Class
+        self.url_map = Map([])
+        pass
+        
+    def route(self, url, methods = None):
+        def decorator(callback):
+            add_Route(url, callback, self.url_map, methods)
+            return callback
+        return decorator
+
+    def get_resp(self, env):
+        self.env = env
+        adapter = self.url_map.bind_to_environ(self.env)
+        try:
+            endpoint, values = adapter.match()
+            return Response(endpoint(**values))
+        except NotFound, e:
+            return Response(status = 404)
+        except HTTPException, e:
+            return Response(status = 500)
         return Response(
             "Holla Got your Requests",
             200
@@ -30,15 +62,13 @@ class holla_server(WSGIServer):
 
     def Resp(self, func, obj):
         func(obj.status, obj.header)
-        return obj.content
+        return str(obj.content)
         
     def application(self, env, start_response):
-        the_app = self.app(env)
-        
         # ===== Default Settings ======
 
         try:
-            html_code = the_app.get_resp()
+            html_code = self.app.get_resp(env)
             if not isinstance(html_code, Response):
                 raise HTTPError(500)
         except HTTPError, e:
